@@ -1,0 +1,311 @@
+%matplotlib inline
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import optimize
+
+#####################################
+#set parameter distributions. (All parameters are distributed according to the triangular distribution)
+
+alpha_min = .4
+alpha_mode = .5
+alpha_max = .6
+b_min = -.6
+b_mode = -.5
+b_max = -.4
+beta_low_min = .45
+beta_low_mode = .5
+beta_low_max = .55
+beta_high_min = .55
+beta_high_mode = .6
+beta_high_max = .65
+M_low_min = 100
+M_low_mode = 105
+M_low_max = 110
+M_high_min = 125
+M_high_mode = 130
+M_high_max = 135
+M0_min = 105
+M0_mode = 110
+M0_max = 115
+T_min = 5
+T_mode = 10
+T_max = 15
+
+#####################################
+#define adj, which conducts all of the optimizations and returns Adj, which is the dollar value gained or lost as a result of the transfer.
+
+def adj(alpha,b,beta_low,beta_high,M_low,M_high,M0,T):
+    #print(alpha,b,beta_low,beta_high,M_low,M_high,M0,T)
+    M1 = M0+T
+    gamma = (beta_high-beta_low)/(M_high-M_low)
+    #beta0
+    if M0<=M_low:
+        beta0=beta_low
+    elif M_low<M0<M_high:
+        beta0=beta_low+gamma*(M0-M_low)
+    else:
+        beta0=beta_high
+    #beta1
+    if M1<=M_low:
+        beta1=beta_low
+    elif M_low<M1<M_high:
+        beta1=beta_low+gamma*(M1-M_low)
+    else:
+        beta1=beta_high
+    #print(M1,gamma,beta0,beta1)
+
+    ###define utility and expenditure functions
+    #recipient irrational 
+    def UI_B_r(p):
+        x, y = p
+        return -(x**alpha * y**(1 - alpha) + beta0*b*x)
+    def UI_C_r(p):
+        x, y = p
+        return -(x**alpha * y**(1 - alpha) + beta1*b*x)
+    #taxpayer irrational
+    def UI_BC_t(p):
+        x, y = p
+        return -(x**alpha * y**(1 - alpha) + beta_high*b*x)
+    #rational
+    def UR_rt(p):
+        x, y = p
+        return -(x**alpha * y**(1 - alpha) + b*x)
+    #expenditure
+    def EV(p):
+        x, y = p
+        return x+y
+
+    ###utility maximization
+
+    ##B
+    lq = optimize.LinearConstraint(
+        A=[
+            [1, 1],
+            [1, 0],
+            [0, 1]
+          ],
+        lb=[M0, 0, 0],
+        ub=[M0, M0, M0]
+    )
+    #recipient
+    res=optimize.minimize(
+        fun=UI_B_r,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XB_r=res.x[0]
+    YB_r=res.x[1]
+    UIB_r=-res.fun
+    URB_r= XB_r**alpha*YB_r**(1-alpha)+b*XB_r
+    #print("XB_r =", XB_r,"YB_r =",YB_r,"UIB_r =",UIB_r,"URB_r =",URB_r)
+    #taxpayer
+    res=optimize.minimize(
+        fun=UI_BC_t,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XB_t=res.x[0]
+    YB_t=res.x[1]
+    UIB_t=-res.fun
+    URB_t= XB_t**alpha*YB_t**(1-alpha)+b*XB_t
+    #print("XB_t =", XB_t,"YB_t =",YB_t,"UIB_t =",UIB_t,"URB_t =",URB_t)
+
+    ##C
+    lq = optimize.LinearConstraint(
+        A=[
+            [1, 1],
+            [1, 0],
+            [0, 1]
+          ],
+        lb=[M1, 0, 0],
+        ub=[M1, M1, M1]
+    )
+    #recipient
+    res=optimize.minimize(
+        fun=UI_C_r,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XC_r=res.x[0]
+    YC_r=res.x[1]
+    UIC_r=-res.fun
+    URC_r= XC_r**alpha*YC_r**(1-alpha)+b*XC_r
+    #print("XC_r =", XC_r,"YC_r =",YC_r,"UIC_r =",UIC_r,"URC_r =",URC_r)
+    #taxpayer
+    res=optimize.minimize(
+        fun=UI_BC_t,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XC_t=res.x[0]
+    YC_t=res.x[1]
+    UIC_t=-res.fun
+    URC_t= XC_t**alpha*YC_t**(1-alpha)+b*XC_t
+    #print("XC_t =", XC_t,"YC_t =",YC_t,"UIC_t =",UIC_t,"URC_t =",URC_t)
+
+    #D
+    #recipient
+    lq = optimize.LinearConstraint(
+        A=[
+            [1, 1],
+            [1, 0],
+            [0, 1]
+          ],
+        lb=[M1, XB_r, YB_r],
+        ub=[M1, M1, M1]
+    )
+    res=optimize.minimize(
+        fun=UR_rt,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XD_r=res.x[0]
+    YD_r=res.x[1]
+    URD_r= XD_r**alpha*YD_r**(1-alpha)+b*XD_r
+    URD_r=-res.fun
+    #print("XD_r =", XD_r,"YD_r =",YD_r,"URD_r =",URD_r)
+    #taxpayer
+    lq = optimize.LinearConstraint(
+        A=[
+            [1, 1],
+            [1, 0],
+            [0, 1]
+          ],
+        lb=[M1, XB_t, YB_t],
+        ub=[M1, M1, M1]
+    )
+    res=optimize.minimize(
+        fun=UR_rt,
+        x0=[0, 0],
+        constraints=lq,
+        method='trust-constr'
+    )
+    XD_t=res.x[0]
+    YD_t=res.x[1]
+    URD_t= -res.fun
+    #print("XD_t =", XD_t,"YD_t =",YD_t,"URD_t =",URD_t)
+
+    ###Expenditure minimization
+
+    def u(p):
+        x,y=p
+        return x**alpha*y**(1-alpha)+b*x
+
+    ##V_B   
+    #recipient
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URB_r],
+        ub=[URB_r])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VB_r=res.fun
+    #print("VB_r =", VB_r)
+    #taxpayer
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URB_t],
+        ub=[URB_t])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VB_t=res.fun
+    #print("VB_t =", VB_t)
+
+    ##EV_C
+    #recipient
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URC_r],
+        ub=[URC_r])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VC_r=res.fun
+    #print("VC_r =", VC_r)
+    #taxpayer
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URC_t],
+        ub=[URC_t])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VC_t=res.fun
+    #print("VC_t =", VC_t)
+
+    #EV_D
+    #recipient
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URD_r],
+        ub=[URD_r])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VD_r=res.fun
+    #print("VD_r =", VD_r)
+    #taxpayer
+    nlc=optimize.NonlinearConstraint(
+        fun=u,
+        lb=[URD_t],
+        ub=[URD_t])
+    res=optimize.minimize(
+        fun=EV,
+        x0=[1,1],
+        constraints=nlc
+        )
+    VD_t=res.fun
+    #print("VD_t =", VD_t)
+
+    ##Output
+    #print("VB_r =", VB_r," VB_t =", VB_t)
+    #print("VC_r =",VC_r,"VC_t =", VC_t)
+    #print("VD_r =", VD_r,"VD_t =", VD_t)
+    Mult_rec=(VC_r-VB_r)/(VD_r-VB_r)
+    #print("Mult_rec =", Mult_rec)
+    Mult_tax=(VC_t-VB_t)/(VD_t-VB_t)
+    #print("Mult_rec =", Mult_rec,"Mult_tax =", Mult_tax)
+    Coef_adj=Mult_rec-Mult_tax
+    Adj=Coef_adj*T
+    #print("Coef_adj =", Coef_adj)
+    #print("Adj =", Adj)
+    return Adj
+    
+##########################################
+#Monte Carlo simulator
+
+for i in range(1000):
+    alpha = np.random.triangular(alpha_min,alpha_mode,alpha_max)
+    b = np.random.triangular(b_min,b_mode,b_max)
+    beta_low = np.random.triangular(beta_low_min,beta_low_mode,beta_low_max)
+    beta_high = np.random.triangular(beta_high_min,beta_high_mode,beta_high_max)
+    M_low = np.random.triangular(M_low_min,M_low_mode,M_low_max)
+    M_high = np.random.triangular(M_high_min,M_high_mode,M_high_max)
+    M0 = np.random.triangular(M0_min,M0_mode,M0_max)
+    T = np.random.triangular(T_min,T_mode,T_max)
+    
+    vect.append(adj(alpha,b,beta_low,beta_high,M_low,M_high,M0,T))
+    
+    
+    ################################
+    #histogram
+    
+    plt.hist(vect,bins=50,density=True)
+    
